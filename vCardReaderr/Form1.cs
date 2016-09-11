@@ -98,34 +98,42 @@ namespace vCardReader
                 string mittente = "";
                 string destinatario = "";
                 int loc = -1;
-                loc = localizza(lines,"X-IRMC-BOX");
-                if (loc < 0)
-                    throw new Exception("Errore nel leggere l vCard");
-                if (togliCaratteriNulli(lines[loc]).Contains("SENT"))
+                string numero = "";
+                int count = 1;
+                while (numero == "")
                 {
-                    mittente = "Inviato da te";
-                    loc = localizza(lines,"BEGIN:VENV");
+                    loc = localizza(lines, "BEGIN:VCARD",count);
                     if (loc < 0)
                         throw new Exception("Errore nel leggere l vCard");
-                    destinatario = togliCaratteriNulli(lines[loc+4]).Substring(4);
-                    if (togliCaratteriNulli(lines[loc + 3]).Substring(2).Equals(""))
-                        destinatario = destinatario + " \"" + trovaNomeRubrica(destinatario) + "\""; 
+                    numero = togliCaratteriNulli(lines[loc + 3]).Substring(4);
+                    if (!numero.Equals(""))
+                        if (togliCaratteriNulli(lines[loc + 2]).Substring(2).Equals(""))
+                            numero = numero + " \"" + trovaNomeRubrica(numero) + "\"";
+                        else
+                            numero = numero + " \"" + togliCaratteriNulli(lines[loc + 2]).Substring(2) + "\"";
                     else
-                        destinatario = destinatario + " \"" + togliCaratteriNulli(lines[loc+3]).Substring(2) + "\"";
+                        count++;
+                }
+                loc = localizza(lines, "X-MESSAGE-TYPE", 1);
+                if (loc > 0)
+                {
+                    if (togliCaratteriNulli(lines[loc]).Split(':')[1].Equals("SUBMIT"))
+                    {
+                        mittente = "Inviato da te";
+                        destinatario = numero;
+                    }
+                    else
+                    {
+                        destinatario = "Ricevuto da te";
+                        mittente = numero;
+                    }
                 }
                 else
                 {
-                    destinatario = "Ricevuto da te";
-                    loc = localizza(lines, "BEGIN:VENV");
-                    if (loc < 0)
-                        throw new Exception("Errore nel leggere l vCard");
-                    mittente = togliCaratteriNulli(lines[loc + 4]).Substring(4);
-                    if (togliCaratteriNulli(lines[loc + 3]).Substring(2).Equals(""))
-                        mittente = mittente + " \"" + trovaNomeRubrica(mittente) + "\"";
-                    else
-                        mittente = mittente + " \"" + togliCaratteriNulli(lines[loc + 3]).Substring(2) + "\"";
+                    mittente = "Non specificato - " + numero;
+                    destinatario = "Non specificato - " + numero;
                 }
-                loc = localizza(lines, "BEGIN:VBODY");
+                loc = localizza(lines, "BEGIN:VBODY",1);
                 if (loc < 0)
                     throw new Exception("Errore nel leggere l vCard");
                 string datatempo = togliCaratteriNulli(lines[loc+1]).Substring(5);
@@ -151,17 +159,21 @@ namespace vCardReader
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
+                vcard = new vCard();
             }
             return vcard;
         }
-        public int localizza(string[] lines,string linea)
+        public int localizza(string[] lines,string linea,int tentativo)
         {
+            int count = 0;
             for (int i = 0; i < lines.Length; i++)
             {
                 string line = togliCaratteriNulli(lines[i]);
                 if (line.Contains(linea))
                 {
-                    return i;
+                    count++;
+                    if (count>=tentativo)
+                        return i;
                 }
             }
             return -1;
@@ -169,8 +181,15 @@ namespace vCardReader
         }
         public string trovaNomeRubrica(string numero)
         {
-            
-            string[] csvLoad = File.ReadAllLines(percorso + "\\contacts.csv");
+            string[] csvLoad = null;
+            try
+            {
+                csvLoad = File.ReadAllLines(percorso + "\\contacts.csv");
+            }
+            catch (Exception ex)
+            {
+                return "";
+            }
             int i = 0;
             foreach (string line in csvLoad)
             {
